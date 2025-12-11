@@ -1,129 +1,121 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
-// Базовий клас з інтерфейсами
-public abstract class Bicycle : ICloneable, IComparable<Bicycle>
+// ======== КЛАС ВЕЛОСИПЕД ========
+class Bicycle : ICloneable, IComparable<Bicycle>
 {
-    public string Brand { get; set; }
-    public int Year { get; set; }
+    public string Model { get; set; }
+    public int Speed { get; set; }
 
-    public Bicycle(string brand, int year)
+    public Bicycle(string model, int speed)
     {
-        Brand = brand;
-        Year = year;
+        Model = model;
+        Speed = speed;
     }
 
-    public abstract string GetInfo();
-
-    // --- ICloneable ---
-    public virtual object Clone()
+    public override string ToString()
     {
-        return this.MemberwiseClone(); // Просте клонування
+        return $"{Model} — {Speed} км/год";
     }
 
-    // --- IComparable ---
-    // Порівняння за роком випуску (новіші > старі)
+    // ---- ICloneable ----
+    public object Clone()
+    {
+        return new Bicycle(Model, Speed);
+    }
+
+    // ---- IComparable ----
     public int CompareTo(Bicycle other)
     {
-        return this.Year.CompareTo(other.Year);
+        return Speed.CompareTo(other.Speed);
     }
 }
 
-// MountainBike
-public class MountainBike : Bicycle
+// ======== КОЛЕКЦІЯ З ВЛАСНИМ ІТЕРАТОРОМ ========
+class BicycleGarage
 {
-    public int Suspension { get; set; }
+    private List<Bicycle> bicycles = new List<Bicycle>();
 
-    public MountainBike(string brand, int year, int suspension)
-        : base(brand, year)
+    public void Add(Bicycle b) => bicycles.Add(b);
+
+    public IEnumerable<Bicycle> All() => bicycles;
+
+    // Ітератор: повертає тільки велосипеди із швидкістю > заданої
+    public IEnumerable<Bicycle> FasterThan(int minSpeed)
     {
-        Suspension = suspension;
+        foreach (var b in bicycles)
+        {
+            if (b.Speed > minSpeed)
+                yield return b;
+        }
     }
 
-    public override string GetInfo()
-        => $"MTB: {Brand}, {Year}, {Suspension} mm";
-
-    public override object Clone()
+    // Метод, що приймає делегат для обробки кожного елемента
+    public void ProcessAll(Action<Bicycle> action)
     {
-        return new MountainBike(Brand, Year, Suspension);
-    }
-}
-
-// RoadBike
-public class RoadBike : Bicycle
-{
-    public double Weight { get; set; }
-
-    public RoadBike(string brand, int year, double weight)
-        : base(brand, year)
-    {
-        Weight = weight;
+        foreach (var b in bicycles)
+            action(b);
     }
 
-    public override string GetInfo()
-        => $"Road: {Brand}, {Year}, {Weight} kg";
-
-    public override object Clone()
+    // інший тип делегата — перевірка умови
+    public IEnumerable<Bicycle> Filter(Func<Bicycle, bool> check)
     {
-        return new RoadBike(Brand, Year, Weight);
+        foreach (var b in bicycles)
+            if (check(b))
+                yield return b;
     }
 }
 
-
-// Сервіс для роботи з колекцією
-public class BicycleService
-{
-    public List<Bicycle> Bikes { get; } = new List<Bicycle>();
-
-    public void Add(Bicycle b) => Bikes.Add(b);
-
-    public void Show()
-    {
-        foreach (var b in Bikes)
-            Console.WriteLine(b.GetInfo());
-    }
-
-    public void Sort()
-    {
-        Bikes.Sort();   // Використовує IComparable
-    }
-}
-
-
-// Головна програма
-public class Program
+// ======== ПРОГРАМА ========
+class Program
 {
     static void Main()
     {
-        BicycleService service = new BicycleService();
+        BicycleGarage garage = new BicycleGarage();
 
-        service.Add(new MountainBike("Trek", 2023, 120));
-        service.Add(new MountainBike("Scott", 2020, 80));
-        service.Add(new RoadBike("Giant", 2022, 8.5));
-        service.Add(new RoadBike("Cube", 2019, 7.9));
+        garage.Add(new Bicycle("Giant", 35));
+        garage.Add(new Bicycle("Trek", 42));
+        garage.Add(new Bicycle("Cube", 28));
+        garage.Add(new Bicycle("Scott", 40));
 
-        Console.WriteLine("Original list:");
-        service.Show();
+        Console.WriteLine("=== Вивід (делегат Action) ===");
+        garage.ProcessAll(b => Console.WriteLine(b));
 
-        // --- Сортування ---
-        service.Sort();
+        Console.WriteLine();
+        Console.WriteLine("=== Фільтрація (делегат Func) — швидкість > 35 ===");
+        foreach (var b in garage.Filter(b => b.Speed > 35))
+            Console.WriteLine(b);
 
-        Console.WriteLine("\nAfter sorting by year:");
-        service.Show();
+        Console.WriteLine();
+        Console.WriteLine("=== Клонування ===");
+        var original = new Bicycle("Author", 33);
+        var copy = (Bicycle)original.Clone();
+        Console.WriteLine("Оригінал: " + original);
+        Console.WriteLine("Копія: " + copy);
 
-        // --- Клонування ---
-        Console.WriteLine("\nCloning example:");
-        Bicycle original = service.Bikes[0];
-        Bicycle clone = (Bicycle)original.Clone();
+        Console.WriteLine();
+        Console.WriteLine("=== Сортування (IComparable) ===");
+        var sorted = garage.All().OrderBy(b => b).ToList();
+        foreach (var b in sorted)
+            Console.WriteLine(b);
 
-        Console.WriteLine("Original: " + original.GetInfo());
-        Console.WriteLine("Clone:    " + clone.GetInfo());
+        Console.WriteLine();
+        Console.WriteLine("=== Власний ітератор (yield) — швидше 30 ===");
+        foreach (var b in garage.FasterThan(30))
+            Console.WriteLine(b);
 
-        // Змінюємо клон — оригінал залишиться тим самим
-        clone.Brand = clone.Brand + " COPY";
+        Console.WriteLine();
+        Console.WriteLine("=== LINQ — середня швидкість ===");
+        double avg = garage.All().Average(b => b.Speed);
+        Console.WriteLine("Середня швидкість: " + avg);
 
-        Console.WriteLine("\nAfter modifying clone:");
-        Console.WriteLine("Original: " + original.GetInfo());
-        Console.WriteLine("Clone:    " + clone.GetInfo());
+        Console.WriteLine();
+        Console.WriteLine("=== LINQ — вибірка моделей зі Speed > 35 ===");
+        var fastModels = garage.All()
+                               .Where(b => b.Speed > 35)
+                               .Select(b => b.Model);
+        foreach (var m in fastModels)
+            Console.WriteLine(m);
     }
 }
